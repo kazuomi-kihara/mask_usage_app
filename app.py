@@ -34,6 +34,10 @@ def get_mask_status_all():
     return df
 
 def mask_rate_page():
+    font_path = 'fonts/ipaexg.ttf'
+    font_prop = FontProperties(fname=font_path)
+    rcParams['font.family'] = font_prop.get_name()
+    
     st.title("マスク着用率一覧")
 
     # ===== 年月選択 =====
@@ -76,9 +80,6 @@ def mask_rate_page():
         # 店舗選択とグラフ表示
         store_options = df_filtered['store_name'].unique()
         selected_store = st.selectbox("店舗を選択してグラフ表示", store_options)
-        font_path = 'fonts/ipaexg.ttf'
-        font_prop = FontProperties(fname=font_path)
-        rcParams['font.family'] = font_prop.get_name()
 
         if selected_store:
             df_all = get_mask_status_all()
