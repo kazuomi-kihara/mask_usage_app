@@ -5,6 +5,7 @@ from matplotlib import rcParams
 import matplotlib.pyplot as plt
 from matplotlib.font_manager import FontProperties
 from datetime import datetime
+import os
 
 # --- フォントパスの設定 ---
 font_path = os.path.join(os.path.dirname(__file__), "fonts", "ipaexg.ttf")
