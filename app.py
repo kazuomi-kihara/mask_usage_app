@@ -144,9 +144,21 @@ def mask_rate_page():
                 grouped['地区'] = area
                 plot_data.append(grouped[['date', 'mask_rate', '地区']])
 
+            # --- 県北地区（全体）を追加 ---
+            grouped_all = df_all.groupby('date').agg(
+                total_no_mask_sum=('total_no_mask', 'sum'),
+                total_active_sum=('total_active', 'sum')
+            ).reset_index()
+
+            grouped_all['mask_rate'] = (grouped_all['total_active_sum'] - grouped_all['total_no_mask_sum']) / grouped_all['total_active_sum'] * 100
+            grouped_all = grouped_all[grouped_all['total_active_sum'] > 0]
+            grouped_all['地区'] = '県北地区'
+
+            plot_data.append(grouped_all[['date', 'mask_rate', '地区']])
+
             # 全地区まとめて
             df_plot = pd.concat(plot_data)
-
+            
             # Plotlyでグラフ描画
             fig = px.line(
                 df_plot,
