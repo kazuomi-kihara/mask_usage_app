@@ -21,7 +21,7 @@ def store_page():
 
     # 新規登録フォーム
     store_name = st.text_input("店舗名を入力")
-    area = st.radio("地区を選択", ("延岡地区", "日向地区"))
+    area = st.radio("地区を選択", ("延岡地区", "日向地区", "東児湯地区"))
     store_type = st.radio("種別を選択", ("自店", "競合"))
 
     if st.button("店舗登録"):
