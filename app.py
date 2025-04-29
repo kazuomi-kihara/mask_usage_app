@@ -2,9 +2,17 @@ import streamlit as st
 import sqlite3
 import pandas as pd
 from matplotlib import rcParams
-from matplotlib.font_manager import FontProperties
 import matplotlib.pyplot as plt
+from matplotlib.font_manager import FontProperties
 from datetime import datetime
+
+# --- フォントパスの設定 ---
+font_path = os.path.join(os.path.dirname(__file__), "fonts", "ipaexg.ttf")
+if os.path.exists(font_path):
+    font_prop = FontProperties(fname=font_path)
+    rcParams['font.family'] = font_prop.get_name()
+else:
+    print("フォントが見つかりません:", font_path)
 
 # ===== サブページ読み込み =====
 import store
@@ -33,11 +41,7 @@ def get_mask_status_all():
     conn.close()
     return df
 
-def mask_rate_page():
-    font_path = 'fonts/ipaexg.ttf'
-    font_prop = FontProperties(fname=font_path)
-    rcParams['font.family'] = font_prop.get_name()
-
+def mask_rate_page():    
     st.title("マスク着用率一覧")
 
     # ===== 年月選択 =====
