@@ -82,7 +82,7 @@ def mask_rate_page():
 
         st.dataframe(df_display, use_container_width=True)
 
-        graph_mode = st.radio("グラフ表示方法を選択", ["店舗別", "地区別"])
+        graph_mode = st.radio("グラフ表示方法を選択", ["店舗別", "地区別（店舗比較）", "地区別（平均比較）"])
         df_all = get_mask_status_all()
         df_all['date'] = pd.to_datetime(df_all['date'])
 
@@ -103,7 +103,7 @@ def mask_rate_page():
                 plt.xticks(rotation=45)
                 st.pyplot(fig)
 
-        elif graph_mode == "地区別":
+        elif graph_mode == "地区別（店舗比較）":
             area_options = df_filtered['area'].unique()
             selected_area = st.selectbox("地区を選択してグラフ表示", area_options)
             if selected_area:
@@ -121,6 +121,46 @@ def mask_rate_page():
                 ax.legend(prop=font_prop, fontsize=6, loc='upper left', bbox_to_anchor=(1, 1))
                 plt.xticks(rotation=45)
                 st.pyplot(fig)
+
+        elif graph_mode == "地区別（平均比較）":
+            df_all = get_mask_status_all()
+            df_all['date'] = pd.to_datetime(df_all['date'], errors='coerce')
+            df_all = df_all[df_all['date'].notnull()]
+            
+            # 対象の地区リスト
+            areas = ['延岡地区', '日向地区', '東児湯地区']
+
+            # 地区ごとに計算する
+            avg_results = {}
+
+            for area in areas:
+                df_area = df_all[df_all['area'] == area].copy()
+                # 日付ごとに groupby
+                grouped = df_area.groupby('date').agg(
+                    total_no_mask_sum=('total_no_mask', 'sum'),
+                    total_active_sum=('total_active', 'sum')
+                ).reset_index()
+                
+                # 地区平均着用率を計算（稼働が0人の時はNaN）
+                grouped['mask_rate'] = (grouped['total_active_sum'] - grouped['total_no_mask_sum']) / grouped['total_active_sum'] * 100
+                grouped = grouped[grouped['total_active_sum'] > 0]  # 稼働ゼロを除外
+
+                avg_results[area] = grouped
+
+            # ===== 折れ線グラフで表示 =====
+            fig, ax = plt.subplots(figsize=(8, 4))
+
+            for area, df_area_result in avg_results.items():
+                ax.plot(df_area_result['date'], df_area_result['mask_rate'], marker='o', label=area)
+
+            ax.set_ylim(0, 100)
+            ax.set_title("地区別平均マスク着用率推移", fontproperties=font_prop)
+            ax.set_xlabel("日付", fontproperties=font_prop)
+            ax.set_ylabel("着用率（％）", fontproperties=font_prop)
+            ax.grid(True)
+            ax.legend(prop=font_prop, fontsize=8, loc='upper left', bbox_to_anchor=(1, 1))
+            plt.xticks(rotation=45)
+            st.pyplot(fig)
 
     else:
         st.info("表示するデータがありません。")
