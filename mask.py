@@ -63,7 +63,7 @@ def mask_page():
                 pachinko_active, slot_active, total_active,
                 pachinko_mask_rate, slot_mask_rate, total_mask_rate
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (store_name_to_id[store_selection], selected_date.strftime("%Y-%m-%d"), year, month,
+        ''', (store_name_to_id[store_selection], selected_date.strftime("%Y/%m/%d"), year, month,
               pachinko_no_mask, slot_no_mask, total_no_mask,
               pachinko_active or None, slot_active or None, total_active,
               pachinko_mask_rate, slot_mask_rate, total_mask_rate))
