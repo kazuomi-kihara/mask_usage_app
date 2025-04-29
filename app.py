@@ -1,6 +1,7 @@
 import streamlit as st
 import sqlite3
 import pandas as pd
+import matplotlib
 import matplotlib.pyplot as plt
 from datetime import datetime
 
@@ -74,6 +75,7 @@ def mask_rate_page():
         # 店舗選択とグラフ表示
         store_options = df_filtered['store_name'].unique()
         selected_store = st.selectbox("店舗を選択してグラフ表示", store_options)
+        matplotlib.rcParams['font.family'] = 'Meiryo'  # Windowsなら「メイリオ」
 
         if selected_store:
             df_all = get_mask_status_all()
