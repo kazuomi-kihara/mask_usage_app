@@ -1,8 +1,9 @@
 import streamlit as st
 import sqlite3
 import pandas as pd
-import matplotlib
+from matplotlib import rcParams
 import matplotlib.pyplot as plt
+from matplotlib.font_manager import FontProperties
 from datetime import datetime
 
 # ===== サブページ読み込み =====
@@ -75,7 +76,9 @@ def mask_rate_page():
         # 店舗選択とグラフ表示
         store_options = df_filtered['store_name'].unique()
         selected_store = st.selectbox("店舗を選択してグラフ表示", store_options)
-        matplotlib.rcParams['font.family'] = 'Noto Sans CJK JP'
+        font_path = 'fonts/ipaexg.ttf'
+        font_prop = FontProperties(fname=font_path)
+        rcParams['font.family'] = font_prop.get_name()
 
         if selected_store:
             df_all = get_mask_status_all()
