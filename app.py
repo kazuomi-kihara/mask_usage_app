@@ -2,8 +2,8 @@ import streamlit as st
 import sqlite3
 import pandas as pd
 from matplotlib import rcParams
-import matplotlib.pyplot as plt
 from matplotlib.font_manager import FontProperties
+import matplotlib.pyplot as plt
 from datetime import datetime
 
 # ===== サブページ読み込み =====
@@ -37,7 +37,7 @@ def mask_rate_page():
     font_path = 'fonts/ipaexg.ttf'
     font_prop = FontProperties(fname=font_path)
     rcParams['font.family'] = font_prop.get_name()
-    
+
     st.title("マスク着用率一覧")
 
     # ===== 年月選択 =====
