@@ -75,8 +75,8 @@ def mask_rate_page():
         # 店舗選択とグラフ表示
         store_options = df_filtered['store_name'].unique()
         selected_store = st.selectbox("店舗を選択してグラフ表示", store_options)
-        matplotlib.rcParams['font.family'] = 'Meiryo'  # Windowsなら「メイリオ」
-
+        matplotlib.rcParams['font.family'] = 'IPAexGothic'
+        
         if selected_store:
             df_all = get_mask_status_all()
             df_store = df_all[df_all['store_name'] == selected_store].copy()
