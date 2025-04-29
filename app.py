@@ -194,3 +194,5 @@ elif page == "店舗登録":
     store.store_page()
 elif page == "稼働データ登録":
     active.active_page()
+
+
