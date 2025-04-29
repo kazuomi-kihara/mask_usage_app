@@ -1,156 +1,106 @@
 import streamlit as st
 import sqlite3
 import pandas as pd
-from datetime import date, timedelta
-import random
+import matplotlib.pyplot as plt
+from datetime import datetime
 
-# --- DB準備 ---
-conn = sqlite3.connect('mask.db')
-c = conn.cursor()
+# ===== サブページ読み込み =====
+import store
+import mask
 
-# --- 店舗テーブル ---
-c.execute('''
-    CREATE TABLE IF NOT EXISTS store (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        store_name TEXT NOT NULL UNIQUE,
-        location TEXT
-    )
-''')
+# ===== DB接続 =====
+DB_FILE = 'mask.db'
 
-# --- mask_status テーブル ---
-c.execute('''
-    CREATE TABLE IF NOT EXISTS mask_status (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        store_id INTEGER NOT NULL,
-        date TEXT NOT NULL,
-        year INTEGER NOT NULL,
-        month INTEGER NOT NULL,
-        pachinko_no_mask INTEGER NOT NULL,
-        slot_no_mask INTEGER NOT NULL,
-        total_no_mask INTEGER NOT NULL,
-        FOREIGN KEY (store_id) REFERENCES store (id)
-    )
-''')
-conn.commit()
+def get_connection():
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    return conn
 
-# --- 過去データ（1回だけ投入） ---
-c.execute('SELECT COUNT(*) FROM mask_status')
-count = c.fetchone()[0]
-if count == 0:
-    stores = pd.read_sql_query('SELECT id FROM store', conn)
-    today = date.today()
-    for store_id in stores['id']:
-        for i in range(10):  # 10日分
-            day = today - timedelta(days=i)
-            pachinko = random.randint(0, 5)
-            slot = random.randint(0, 5)
-            total = pachinko + slot
-            year = day.year
-            month = day.month
-            c.execute('''
-                INSERT INTO mask_status 
-                (store_id, date, year, month, pachinko_no_mask, slot_no_mask, total_no_mask)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            ''', (store_id, day.strftime('%Y-%m-%d'), year, month, pachinko, slot, total))
-    conn.commit()
-
-# --- ページ選択 ---
-st.sidebar.title('メニュー')
-page = st.sidebar.radio('ページを選んでください', ('店舗登録', '非着用者入力', '過去推移グラフ'))
-
-# --- 店舗登録ページ ---
-if page == '店舗登録':
-    st.title('店舗登録')
-    with st.form(key='store_form'):
-        store_name = st.text_input('店舗名')
-        location = st.text_input('場所（任意）')
-        submit_button = st.form_submit_button('登録')
-        if submit_button:
-            try:
-                c.execute('INSERT INTO store (store_name, location) VALUES (?, ?)',
-                          (store_name, location))
-                conn.commit()
-                st.success(f'店舗「{store_name}」を登録しました！')
-            except sqlite3.IntegrityError:
-                st.error('その店舗名はすでに登録されています。')
-
-    # 登録済み店舗一覧
-    st.header('登録済み店舗一覧')
-    df_store = pd.read_sql_query('SELECT * FROM store', conn)
-    st.dataframe(df_store)
-
-# --- 非着用者入力ページ ---
-elif page == '非着用者入力':
-    st.title('非着用者数の入力（過去データもOK）')
-
-    stores = pd.read_sql_query('SELECT id, store_name FROM store', conn)
-    store_options = dict(zip(stores['store_name'], stores['id']))
-
-    if store_options:
-        selected_store = st.selectbox('店舗を選択', list(store_options.keys()))
-        selected_date = st.date_input('日付を選択（過去でもOK）', date.today())  # ← ここが修正ポイント！
-        pachinko_count = st.number_input('非着用者人数（パチンコ）', min_value=0, step=1)
-        slot_count = st.number_input('非着用者人数（スロット）', min_value=0, step=1)
-        submit_mask = st.button('登録')
-
-        if submit_mask:
-            store_id = store_options[selected_store]
-            total_count = pachinko_count + slot_count
-            year = selected_date.year
-            month = selected_date.month
-            c.execute('SELECT id FROM mask_status WHERE store_id = ? AND date = ?', 
-                      (store_id, selected_date.strftime('%Y-%m-%d')))
-            exists = c.fetchone()
-            if exists:
-                c.execute('''
-                    UPDATE mask_status 
-                    SET pachinko_no_mask = ?, slot_no_mask = ?, total_no_mask = ?, year = ?, month = ?
-                    WHERE store_id = ? AND date = ?
-                ''', (pachinko_count, slot_count, total_count, year, month, store_id, selected_date.strftime('%Y-%m-%d')))
-                st.info('既存データを更新しました。')
-            else:
-                c.execute('''
-                    INSERT INTO mask_status 
-                    (store_id, date, year, month, pachinko_no_mask, slot_no_mask, total_no_mask)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                ''', (store_id, selected_date.strftime('%Y-%m-%d'), year, month, pachinko_count, slot_count, total_count))
-                st.success('非着用者人数を登録しました！')
-            conn.commit()
-    else:
-        st.warning('まず店舗を登録してください。')
-
-    # 入力済みデータ一覧
-    st.header('非着用者データ一覧')
-    query = '''
-        SELECT ms.id, s.store_name, ms.date, ms.year, ms.month, 
-               ms.pachinko_no_mask, ms.slot_no_mask, ms.total_no_mask
+def get_mask_status_all():
+    conn = get_connection()
+    df = pd.read_sql_query('''
+        SELECT ms.id, s.store_name, ms.date, ms.year, ms.month,
+               ms.pachinko_no_mask, ms.slot_no_mask, ms.total_no_mask,
+               ms.pachinko_active, ms.slot_active, ms.total_active,
+               ms.pachinko_mask_rate, ms.slot_mask_rate, ms.total_mask_rate,
+               s.area, s.type
         FROM mask_status ms
         JOIN store s ON ms.store_id = s.id
-        ORDER BY ms.date DESC
-    '''
-    df_mask = pd.read_sql_query(query, conn)
-    st.dataframe(df_mask)
+        ORDER BY ms.date DESC, ms.store_id
+    ''', conn)
+    conn.close()
+    return df
 
+def mask_rate_page():
+    st.title("マスク着用率一覧")
 
-# --- 過去推移グラフページ ---
-elif page == '過去推移グラフ':
-    st.title('店舗別 非着用者数の推移グラフ')
+    # ===== 年月選択 =====
+    current_year = datetime.today().year
+    current_month = datetime.today().month
+    years = list(range(2023, current_year + 2))
+    months = list(range(1, 13))
 
-    stores = pd.read_sql_query('SELECT id, store_name FROM store', conn)
-    st.header('店舗を選んで過去の非着用者推移を見る')
+    col1, col2 = st.columns(2)
+    with col1:
+        selected_year = st.selectbox("西暦を選択", years, index=years.index(current_year))
+    with col2:
+        selected_month = st.selectbox("月を選択", months, index=current_month - 1)
 
-    cols = st.columns(len(stores))
+    if st.button("表示する") or 'df_filtered' in st.session_state:
+        df = get_mask_status_all()
+        df_filtered = df[(df['year'] == selected_year) & (df['month'] == selected_month)]
+        st.session_state['df_filtered'] = df_filtered
+    else:
+        df_filtered = pd.DataFrame()
 
-    for idx, row in stores.iterrows():
-        if cols[idx].button(row['store_name']):
-            query = '''
-                SELECT date, pachinko_no_mask, slot_no_mask, total_no_mask
-                FROM mask_status
-                WHERE store_id = ?
-                ORDER BY date
-            '''
-            df_mask = pd.read_sql_query(query, conn, params=(row['id'],))
-            st.subheader(f'店舗：{row["store_name"]} の非着用者推移')
-            st.line_chart(df_mask.set_index('date')[['pachinko_no_mask', 'slot_no_mask', 'total_no_mask']])
+    if not df_filtered.empty:
+        df_display = df_filtered[[
+            'store_name',
+            'pachinko_no_mask', 'slot_no_mask', 'total_no_mask',
+            'pachinko_active', 'slot_active', 'total_active',
+            'pachinko_mask_rate', 'slot_mask_rate', 'total_mask_rate']].copy()
 
-conn.close()
+        df_display.columns = [
+            '店舗名', '未着用P', '未着用S', '未着用計',
+            '稼働P', '稼働S', '稼働計',
+            '着用率P', '着用率S', '着用率計']
+
+        df_display['着用率P'] = df_display['着用率P'].apply(lambda x: f"{x*100:.1f}%" if pd.notnull(x) else "")
+        df_display['着用率S'] = df_display['着用率S'].apply(lambda x: f"{x*100:.1f}%" if pd.notnull(x) else "")
+        df_display['着用率計'] = df_display['着用率計'].apply(lambda x: f"{x*100:.1f}%" if pd.notnull(x) else "")
+
+        st.dataframe(df_display, use_container_width=True)
+
+        # 店舗選択とグラフ表示
+        store_options = df_filtered['store_name'].unique()
+        selected_store = st.selectbox("店舗を選択してグラフ表示", store_options)
+
+        if selected_store:
+            df_all = get_mask_status_all()
+            df_store = df_all[df_all['store_name'] == selected_store].copy()
+            df_store['date'] = pd.to_datetime(df_store['date'])
+            df_store = df_store.sort_values('date')
+
+            fig, ax = plt.subplots(figsize=(8, 4))
+            ax.plot(df_store['date'], df_store['total_mask_rate'] * 100, marker='o')
+            ax.set_ylim(0, 100)
+            ax.set_title(f"{selected_store} のマスク着用率推移")
+            ax.set_xlabel("日付")
+            ax.set_ylabel("着用率（％）")
+            ax.grid(True)
+            plt.xticks(rotation=45)
+            st.pyplot(fig)
+    else:
+        st.info("表示するデータがありません。")
+
+# ===== ページ切り替え =====
+st.set_page_config(page_title="マスク管理システム", layout="wide")
+
+page = st.sidebar.selectbox("ページを選択", ("店舗登録", "非着用者入力", "マスク着用率一覧"))
+
+if page == "店舗登録":
+    store.store_page()
+elif page == "非着用者入力":
+    mask.mask_page()
+elif page == "マスク着用率一覧":
+    mask_rate_page()
