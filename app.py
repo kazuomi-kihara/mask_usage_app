@@ -158,7 +158,7 @@ def mask_rate_page():
 
             # 全地区まとめて
             df_plot = pd.concat(plot_data)
-            
+
             # Plotlyでグラフ描画
             fig = px.line(
                 df_plot,
@@ -170,6 +170,10 @@ def mask_rate_page():
                 title="地区別 平均マスク着用率推移"
             )
             fig.update_layout(yaxis_range=[0, 100])
+
+            fig.update_xaxes(
+                tickformat="%Y年%m月"
+            )
 
             st.plotly_chart(fig, use_container_width=True)
 
