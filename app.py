@@ -49,13 +49,13 @@ def mask_rate_page():
     current_year = datetime.today().year
     current_month = datetime.today().month
     years = list(range(2023, current_year + 2))
-    months = list(range(1, 13))
+    months = [1, 4, 7, 10]  # 四半期のみ
 
     col1, col2 = st.columns(2)
     with col1:
         selected_year = st.selectbox("西暦を選択", years, index=years.index(current_year))
     with col2:
-        selected_month = st.selectbox("月を選択", months, index=current_month - 1)
+        selected_month = st.selectbox("月を選択", months, index=months.index(current_month) if current_month in months else 0)
 
     if st.button("表示する") or 'df_filtered' in st.session_state:
         df = get_mask_status_all()
@@ -82,25 +82,46 @@ def mask_rate_page():
 
         st.dataframe(df_display, use_container_width=True)
 
-        # 店舗選択とグラフ表示
-        store_options = df_filtered['store_name'].unique()
-        selected_store = st.selectbox("店舗を選択してグラフ表示", store_options)
+        graph_mode = st.radio("グラフ表示方法を選択", ["店舗別", "地区別"])
+        df_all = get_mask_status_all()
+        df_all['date'] = pd.to_datetime(df_all['date'])
 
-        if selected_store:
-            df_all = get_mask_status_all()
-            df_store = df_all[df_all['store_name'] == selected_store].copy()
-            df_store['date'] = pd.to_datetime(df_store['date'])
-            df_store = df_store.sort_values('date')
+        if graph_mode == "店舗別":
+            store_options = df_filtered['store_name'].unique()
+            selected_store = st.selectbox("店舗を選択してグラフ表示", store_options)
+            if selected_store:
+                df_store = df_all[df_all['store_name'] == selected_store].copy()
+                df_store = df_store.sort_values('date')
 
-            fig, ax = plt.subplots(figsize=(8, 4))
-            ax.plot(df_store['date'], df_store['total_mask_rate'] * 100, marker='o')
-            ax.set_ylim(0, 100)
-            ax.set_title(f"{selected_store} のマスク着用率推移", fontproperties=font_prop)
-            ax.set_xlabel("日付", fontproperties=font_prop)
-            ax.set_ylabel("着用率（％）", fontproperties=font_prop)
-            ax.grid(True)
-            plt.xticks(rotation=45)
-            st.pyplot(fig)
+                fig, ax = plt.subplots(figsize=(8, 4))
+                ax.plot(df_store['date'], df_store['total_mask_rate'] * 100, marker='o')
+                ax.set_ylim(0, 100)
+                ax.set_title(f"{selected_store} のマスク着用率推移", fontproperties=font_prop)
+                ax.set_xlabel("日付", fontproperties=font_prop)
+                ax.set_ylabel("着用率（％）", fontproperties=font_prop)
+                ax.grid(True)
+                plt.xticks(rotation=45)
+                st.pyplot(fig)
+
+        elif graph_mode == "地区別":
+            area_options = df_filtered['area'].unique()
+            selected_area = st.selectbox("地区を選択してグラフ表示", area_options)
+            if selected_area:
+                df_area = df_all[df_all['area'] == selected_area].copy()
+                df_area = df_area.sort_values('date')
+
+                fig, ax = plt.subplots(figsize=(8, 4))
+                for store_name, group in df_area.groupby('store_name'):
+                    ax.plot(group['date'], group['total_mask_rate'] * 100, marker='o', label=store_name)
+                ax.set_ylim(0, 100)
+                ax.set_title(f"{selected_area} のマスク着用率推移", fontproperties=font_prop)
+                ax.set_xlabel("日付", fontproperties=font_prop)
+                ax.set_ylabel("着用率（％）", fontproperties=font_prop)
+                ax.grid(True)
+                ax.legend(prop=font_prop, fontsize=6, loc='upper left', bbox_to_anchor=(1, 1))
+                plt.xticks(rotation=45)
+                st.pyplot(fig)
+
     else:
         st.info("表示するデータがありません。")
 

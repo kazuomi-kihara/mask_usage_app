@@ -118,3 +118,15 @@ def mask_page():
     st.subheader("登録済みデータ一覧")
     df_mask = get_mask_status_all()
     st.dataframe(df_mask, use_container_width=True)
+
+    # ----- 削除機能 -----
+    st.subheader("登録データの削除")
+    delete_id = st.number_input("削除したいデータのIDを入力", min_value=1, step=1)
+
+    if st.button("このIDのデータを削除"):
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM mask_status WHERE id = ?", (delete_id,))
+        conn.commit()
+        conn.close()
+        st.success(f"ID {delete_id} のデータを削除しました。")
