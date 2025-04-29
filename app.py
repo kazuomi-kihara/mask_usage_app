@@ -167,12 +167,12 @@ def mask_rate_page():
 # ===== ページ切り替え =====
 st.set_page_config(page_title="マスク管理システム", layout="wide")
 
-page = st.sidebar.selectbox("ページを選択", ("店舗登録", "非着用者入力", "マスク着用率一覧"))
+page = st.sidebar.selectbox("ページを選択", ("マスク着用率一覧", "非着用者入力","店舗登録" ))
 
-if page == "店舗登録":
-    store.store_page()
+if page == "マスク着用率一覧":
+    mask_rate_page()
 elif page == "非着用者入力":
     mask.mask_page()
-elif page == "マスク着用率一覧":
-    mask_rate_page()
+elif page == "店舗登録":
+    store.store_page()
 
