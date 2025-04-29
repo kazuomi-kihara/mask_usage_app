@@ -175,3 +175,4 @@ elif page == "非着用者入力":
     mask.mask_page()
 elif page == "マスク着用率一覧":
     mask_rate_page()
+
