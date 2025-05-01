@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from matplotlib.font_manager import FontProperties
 from datetime import datetime
 import os
-import plotly.express as px
+import plotly.express as px  # Plotly追加
 
 # --- フォントパスの設定 ---
 font_path = os.path.join(os.path.dirname(__file__), "fonts", "ipaexg.ttf")
@@ -87,6 +87,7 @@ def mask_rate_page():
         graph_mode = st.radio("グラフ表示方法を選択", ["店舗別", "地区別（店舗比較）", "地区別（平均比較）"])
         df_all = get_mask_status_all()
         df_all['date'] = pd.to_datetime(df_all['date'])
+        df_all['date_label'] = df_all['date'].dt.strftime('%Y年%m月')
 
         if graph_mode == "店舗別":
             store_options = df_filtered['store_name'].unique()
@@ -95,15 +96,16 @@ def mask_rate_page():
                 df_store = df_all[df_all['store_name'] == selected_store].copy()
                 df_store = df_store.sort_values('date')
 
-                fig, ax = plt.subplots(figsize=(8, 4))
-                ax.plot(df_store['date'], df_store['total_mask_rate'] * 100, marker='o')
-                ax.set_ylim(0, 100)
-                ax.set_title(f"{selected_store} のマスク着用率推移", fontproperties=font_prop)
-                ax.set_xlabel("日付", fontproperties=font_prop)
-                ax.set_ylabel("着用率（％）", fontproperties=font_prop)
-                ax.grid(True)
-                plt.xticks(rotation=45)
-                st.pyplot(fig)
+                fig = px.line(
+                    df_store,
+                    x="date_label",
+                    y=df_store['total_mask_rate'] * 100,
+                    markers=True,
+                    labels={"x": "日付", "y": "着用率（％）"},
+                    title=f"{selected_store} のマスク着用率推移"
+                )
+                fig.update_layout(yaxis_range=[0, 100])
+                st.plotly_chart(fig, use_container_width=True)
 
         elif graph_mode == "地区別（店舗比較）":
             area_options = df_filtered['area'].unique()
@@ -112,70 +114,60 @@ def mask_rate_page():
                 df_area = df_all[df_all['area'] == selected_area].copy()
                 df_area = df_area.sort_values('date')
 
-                fig, ax = plt.subplots(figsize=(8, 4))
-                for store_name, group in df_area.groupby('store_name'):
-                    ax.plot(group['date'], group['total_mask_rate'] * 100, marker='o', label=store_name)
-                ax.set_ylim(0, 100)
-                ax.set_title(f"{selected_area} のマスク着用率推移", fontproperties=font_prop)
-                ax.set_xlabel("日付", fontproperties=font_prop)
-                ax.set_ylabel("着用率（％）", fontproperties=font_prop)
-                ax.grid(True)
-                ax.legend(prop=font_prop, fontsize=6, loc='upper left', bbox_to_anchor=(1, 1))
-                plt.xticks(rotation=45)
-                st.pyplot(fig)
+                df_plot = df_area[['date_label', 'store_name', 'total_mask_rate']].copy()
+                df_plot['mask_rate'] = df_plot['total_mask_rate'] * 100
+                df_plot.rename(columns={'store_name': '店舗名'}, inplace=True)
+
+                fig = px.line(
+                    df_plot,
+                    x="date_label",
+                    y="mask_rate",
+                    color="店舗名",
+                    markers=True,
+                    labels={"date_label": "日付", "mask_rate": "着用率（％）", "店舗名": "店舗"},
+                    title=f"{selected_area} 地区 店舗別マスク着用率推移"
+                )
+                fig.update_layout(yaxis_range=[0, 100])
+                st.plotly_chart(fig, use_container_width=True)
 
         elif graph_mode == "地区別（平均比較）":
-            df_all = get_mask_status_all()
-            df_all['date'] = pd.to_datetime(df_all['date'], errors='coerce')
-            df_all = df_all[df_all['date'].notnull()]
-
-            areas = ['延岡地区', '日向地区', '東児湯地区']
+            areas = df_all['area'].dropna().unique()
             plot_data = []
-
             for area in areas:
                 df_area = df_all[df_all['area'] == area].copy()
                 grouped = df_area.groupby('date').agg(
                     total_no_mask_sum=('total_no_mask', 'sum'),
                     total_active_sum=('total_active', 'sum')
                 ).reset_index()
-
                 grouped['mask_rate'] = (grouped['total_active_sum'] - grouped['total_no_mask_sum']) / grouped['total_active_sum'] * 100
                 grouped = grouped[grouped['total_active_sum'] > 0]
-
                 grouped['地区'] = area
-                plot_data.append(grouped[['date', 'mask_rate', '地区']])
+                grouped['date_label'] = grouped['date'].dt.strftime('%Y年%m月')
+                plot_data.append(grouped[['date_label', 'mask_rate', '地区']])
 
-            # --- 県北地区（全体）を追加 ---
+            df_plot = pd.concat(plot_data)
+
             grouped_all = df_all.groupby('date').agg(
                 total_no_mask_sum=('total_no_mask', 'sum'),
                 total_active_sum=('total_active', 'sum')
             ).reset_index()
-
             grouped_all['mask_rate'] = (grouped_all['total_active_sum'] - grouped_all['total_no_mask_sum']) / grouped_all['total_active_sum'] * 100
             grouped_all = grouped_all[grouped_all['total_active_sum'] > 0]
             grouped_all['地区'] = '県北地区'
+            grouped_all['date_label'] = grouped_all['date'].dt.strftime('%Y年%m月')
 
-            plot_data.append(grouped_all[['date', 'mask_rate', '地区']])
+            df_plot = pd.concat([df_plot, grouped_all[['date_label', 'mask_rate', '地区']]])
 
-            # 全地区まとめて
-            df_plot = pd.concat(plot_data)
-
-            # Plotlyでグラフ描画
             fig = px.line(
                 df_plot,
-                x='date',
-                y='mask_rate',
-                color='地区',
+                x="date_label",
+                y="mask_rate",
+                color="地区",
                 markers=True,
-                labels={"date": "日付", "mask_rate": "着用率（％）", "地区": "地区"},
+                labels={"date_label": "日付", "mask_rate": "着用率（％）", "地区": "地区"},
                 title="地区別 平均マスク着用率推移"
             )
             fig.update_layout(yaxis_range=[0, 100])
-
-            fig.update_xaxes(
-                tickformat="%Y年%m月"
-            )
-
             st.plotly_chart(fig, use_container_width=True)
 
     else:
@@ -184,7 +176,7 @@ def mask_rate_page():
 # ===== ページ切り替え =====
 st.set_page_config(page_title="マスク管理システム", layout="wide")
 
-page = st.sidebar.selectbox("ページを選択", ("マスク着用率一覧", "非着用者入力","店舗登録","稼働データ登録" ))
+page = st.sidebar.selectbox("ページを選択", ("マスク着用率一覧", "非着用者入力", "店舗登録", "稼働データ登録"))
 
 if page == "マスク着用率一覧":
     mask_rate_page()
@@ -194,5 +186,3 @@ elif page == "店舗登録":
     store.store_page()
 elif page == "稼働データ登録":
     active.active_page()
-
-
