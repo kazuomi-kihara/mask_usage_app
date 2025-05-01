@@ -8,6 +8,7 @@ from datetime import datetime
 import os
 import plotly.express as px  # Plotly追加
 
+
 # --- フォントパスの設定 ---
 font_path = os.path.join(os.path.dirname(__file__), "fonts", "ipaexg.ttf")
 if os.path.exists(font_path):
@@ -20,6 +21,7 @@ else:
 import store
 import mask
 import active  # 追加: 稼働データ登録用ページ
+import edit  # データ編集ページ
 
 # ===== DB接続 =====
 DB_FILE = 'mask.db'
@@ -176,7 +178,7 @@ def mask_rate_page():
 # ===== ページ切り替え =====
 st.set_page_config(page_title="マスク管理システム", layout="wide")
 
-page = st.sidebar.selectbox("ページを選択", ("マスク着用率一覧", "非着用者入力", "店舗登録", "稼働データ登録"))
+page = st.sidebar.selectbox("ページを選択", ("マスク着用率一覧", "非着用者入力", "店舗登録", "稼働データ登録", "データ修正"))
 
 if page == "マスク着用率一覧":
     mask_rate_page()
@@ -186,3 +188,5 @@ elif page == "店舗登録":
     store.store_page()
 elif page == "稼働データ登録":
     active.active_page()
+elif page == "データ修正":
+    edit.edit_page()
