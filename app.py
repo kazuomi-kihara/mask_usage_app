@@ -8,7 +8,6 @@ from datetime import datetime
 import os
 import plotly.express as px  # Plotly追加
 
-
 # --- フォントパスの設定 ---
 font_path = os.path.join(os.path.dirname(__file__), "fonts", "ipaexg.ttf")
 if os.path.exists(font_path):
@@ -20,7 +19,7 @@ else:
 # ===== サブページ読み込み =====
 import store
 import mask
-import active  # 追加: 稼働データ登録用ページ
+import active  # 稼働データ登録用ページ
 import edit  # データ編集ページ
 
 # ===== DB接続 =====
@@ -46,50 +45,24 @@ def get_mask_status_all():
     conn.close()
     return df
 
-def mask_rate_page():    
-    st.title("マスク着用率一覧")
+def mask_rate_page():
+    st.title("マスク着用率グラフ")
 
-    # ===== 年月選択 =====
-    current_year = datetime.today().year
-    current_month = datetime.today().month
-    years = list(range(2023, current_year + 2))
-    months = [1, 4, 7, 10]  # 四半期のみ
+    # --- グラフ表示 ---
+    df_all = get_mask_status_all()
+    df_all['date'] = pd.to_datetime(df_all['date'])
+    df_all['date_label'] = df_all['date'].dt.strftime('%Y年%m月')
 
-    col1, col2 = st.columns(2)
-    with col1:
-        selected_year = st.selectbox("西暦を選択", years, index=years.index(current_year))
-    with col2:
-        selected_month = st.selectbox("月を選択", months, index=months.index(current_month) if current_month in months else 0)
+    # 最新年月を取得
+    latest_date = df_all['date'].max()
+    latest_year = latest_date.year
+    latest_month = latest_date.month
 
-    if st.button("表示する") or 'df_filtered' in st.session_state:
-        df = get_mask_status_all()
-        df_filtered = df[(df['year'] == selected_year) & (df['month'] == selected_month)]
-        st.session_state['df_filtered'] = df_filtered
-    else:
-        df_filtered = pd.DataFrame()
+    # 最新年月のデータを抽出
+    df_filtered = df_all[(df_all['year'] == latest_year) & (df_all['month'] == latest_month)]
 
     if not df_filtered.empty:
-        df_display = df_filtered[[
-            'store_name',
-            'pachinko_no_mask', 'slot_no_mask', 'total_no_mask',
-            'pachinko_active', 'slot_active', 'total_active',
-            'pachinko_mask_rate', 'slot_mask_rate', 'total_mask_rate']].copy()
-
-        df_display.columns = [
-            '店舗名', '未着用P', '未着用S', '未着用計',
-            '稼働P', '稼働S', '稼働計',
-            '着用率P', '着用率S', '着用率計']
-
-        df_display['着用率P'] = df_display['着用率P'].apply(lambda x: f"{x*100:.1f}%" if pd.notnull(x) else "")
-        df_display['着用率S'] = df_display['着用率S'].apply(lambda x: f"{x*100:.1f}%" if pd.notnull(x) else "")
-        df_display['着用率計'] = df_display['着用率計'].apply(lambda x: f"{x*100:.1f}%" if pd.notnull(x) else "")
-
-        st.dataframe(df_display, use_container_width=True)
-
-        graph_mode = st.radio("グラフ表示方法を選択", ["店舗別", "地区別（店舗比較）", "地区別（平均比較）"])
-        df_all = get_mask_status_all()
-        df_all['date'] = pd.to_datetime(df_all['date'])
-        df_all['date_label'] = df_all['date'].dt.strftime('%Y年%m月')
+        graph_mode = st.radio("グラフ表示方法を選択", ["地区別（平均比較）", "地区別（店舗比較）", "店舗別"])
 
         if graph_mode == "店舗別":
             store_options = df_filtered['store_name'].unique()
@@ -97,13 +70,14 @@ def mask_rate_page():
             if selected_store:
                 df_store = df_all[df_all['store_name'] == selected_store].copy()
                 df_store = df_store.sort_values('date')
+                df_store['mask_rate'] = df_store['total_mask_rate'] * 100
 
                 fig = px.line(
                     df_store,
                     x="date_label",
-                    y=df_store['total_mask_rate'] * 100,
+                    y="mask_rate",
                     markers=True,
-                    labels={"x": "日付", "y": "着用率（％）"},
+                    labels={"date_label": "日付", "mask_rate": "着用率（％）"},
                     title=f"{selected_store} のマスク着用率推移"
                 )
                 fig.update_layout(yaxis_range=[0, 100])
@@ -115,18 +89,15 @@ def mask_rate_page():
             if selected_area:
                 df_area = df_all[df_all['area'] == selected_area].copy()
                 df_area = df_area.sort_values('date')
-
-                df_plot = df_area[['date_label', 'store_name', 'total_mask_rate']].copy()
-                df_plot['mask_rate'] = df_plot['total_mask_rate'] * 100
-                df_plot.rename(columns={'store_name': '店舗名'}, inplace=True)
+                df_area['mask_rate'] = df_area['total_mask_rate'] * 100
 
                 fig = px.line(
-                    df_plot,
+                    df_area,
                     x="date_label",
                     y="mask_rate",
-                    color="店舗名",
+                    color="store_name",
                     markers=True,
-                    labels={"date_label": "日付", "mask_rate": "着用率（％）", "店舗名": "店舗"},
+                    labels={"date_label": "日付", "mask_rate": "着用率（％）", "store_name": "店舗"},
                     title=f"{selected_area} 地区 店舗別マスク着用率推移"
                 )
                 fig.update_layout(yaxis_range=[0, 100])
@@ -135,7 +106,20 @@ def mask_rate_page():
         elif graph_mode == "地区別（平均比較）":
             areas = df_all['area'].dropna().unique()
             plot_data = []
-            for area in areas:
+
+            # --- 全地区（全体平均）を最初に追加 ---
+            grouped_all = df_all.groupby('date').agg(
+                total_no_mask_sum=('total_no_mask', 'sum'),
+                total_active_sum=('total_active', 'sum')
+            ).reset_index()
+            grouped_all['mask_rate'] = (grouped_all['total_active_sum'] - grouped_all['total_no_mask_sum']) / grouped_all['total_active_sum'] * 100
+            grouped_all = grouped_all[grouped_all['total_active_sum'] > 0]
+            grouped_all['地区'] = '全地区'
+            grouped_all['date_label'] = grouped_all['date'].dt.strftime('%Y年%m月')
+            plot_data.append(grouped_all[['date_label', 'mask_rate', '地区']])
+
+            # --- 各地区を追加 ---
+            for area in sorted(areas):
                 df_area = df_all[df_all['area'] == area].copy()
                 grouped = df_area.groupby('date').agg(
                     total_no_mask_sum=('total_no_mask', 'sum'),
@@ -147,18 +131,8 @@ def mask_rate_page():
                 grouped['date_label'] = grouped['date'].dt.strftime('%Y年%m月')
                 plot_data.append(grouped[['date_label', 'mask_rate', '地区']])
 
+            # --- データを結合してグラフ化 ---
             df_plot = pd.concat(plot_data)
-
-            grouped_all = df_all.groupby('date').agg(
-                total_no_mask_sum=('total_no_mask', 'sum'),
-                total_active_sum=('total_active', 'sum')
-            ).reset_index()
-            grouped_all['mask_rate'] = (grouped_all['total_active_sum'] - grouped_all['total_no_mask_sum']) / grouped_all['total_active_sum'] * 100
-            grouped_all = grouped_all[grouped_all['total_active_sum'] > 0]
-            grouped_all['地区'] = '県北地区'
-            grouped_all['date_label'] = grouped_all['date'].dt.strftime('%Y年%m月')
-
-            df_plot = pd.concat([df_plot, grouped_all[['date_label', 'mask_rate', '地区']]])
 
             fig = px.line(
                 df_plot,
@@ -174,6 +148,46 @@ def mask_rate_page():
 
     else:
         st.info("表示するデータがありません。")
+
+# マスク着用率 ======
+        st.markdown("---")
+    st.subheader("マスク着用率一覧（年月指定）")
+
+    # 年月選択
+    current_year = datetime.today().year
+    current_month = datetime.today().month
+    years = list(range(2023, current_year + 2))
+    months = [1, 4, 7, 10]
+
+    col1, col2 = st.columns(2)
+    with col1:
+        selected_year = st.selectbox("表示する年", years, index=years.index(current_year))
+    with col2:
+        default_month_index = months.index(current_month) if current_month in months else 0
+        selected_month = st.selectbox("表示する月", months, index=default_month_index)
+
+    df_table = df_all[(df_all['year'] == selected_year) & (df_all['month'] == selected_month)].copy()
+
+    if df_table.empty:
+        st.info("該当するデータがありません。")
+    else:
+        df_table_display = df_table[[
+            'store_name',
+            'pachinko_no_mask', 'slot_no_mask', 'total_no_mask',
+            'pachinko_active', 'slot_active', 'total_active',
+            'pachinko_mask_rate', 'slot_mask_rate', 'total_mask_rate'
+        ]].copy()
+
+        df_table_display.columns = [
+            '店舗名', '未着用P', '未着用S', '未着用計',
+            '稼働P', '稼働S', '稼働計',
+            '着用率P', '着用率S', '着用率計'
+        ]
+
+        for col in ['着用率P', '着用率S', '着用率計']:
+            df_table_display[col] = df_table_display[col].apply(lambda x: f"{x*100:.1f}%" if pd.notnull(x) else "")
+
+        st.dataframe(df_table_display, use_container_width=True)
 
 # ===== ページ切り替え =====
 st.set_page_config(page_title="マスク管理システム", layout="wide")
