@@ -48,6 +48,16 @@ def get_mask_status_all():
 def mask_rate_page():
     st.title("マスク着用率グラフ")
 
+    # ページ冒頭に追加（mask_rate_page() の最初）
+    df_check = get_mask_status_all()
+    missing_df = df_check[(df_check['pachinko_active'].isnull()) | (df_check['slot_active'].isnull())]
+
+    if not missing_df.empty:
+        missing_stores = missing_df['store_name'].unique()
+        msg = "⚠️ 以下の店舗で稼働人数が未入力です：\n\n" + "\n".join(f"- {name}" for name in missing_stores)
+        st.warning(msg)
+
+
     # --- グラフ表示 ---
     df_all = get_mask_status_all()
     df_all['date'] = pd.to_datetime(df_all['date'])
