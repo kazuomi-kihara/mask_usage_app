@@ -21,7 +21,7 @@ import store
 import mask
 import active  # 稼働データ登録用ページ
 import edit  # データ編集ページ
-
+import comment  # コメント入力ページ
 # ===== DB接続 =====
 DB_FILE = 'mask.db'
 
@@ -149,7 +149,7 @@ def mask_rate_page():
     else:
         st.info("表示するデータがありません。")
 
-# マスク着用率 ======
+    # マスク着用率 ======
         st.markdown("---")
     st.subheader("マスク着用率一覧（年月指定）")
 
@@ -187,12 +187,39 @@ def mask_rate_page():
         for col in ['着用率P', '着用率S', '着用率計']:
             df_table_display[col] = df_table_display[col].apply(lambda x: f"{x*100:.1f}%" if pd.notnull(x) else "")
 
-        st.dataframe(df_table_display, use_container_width=True)
+        st.dataframe(
+            df_table_display,
+            use_container_width=True,
+            column_order=["店舗名"] + [col for col in df_table_display.columns if col != "店舗名"],
+            column_config={
+                "店舗名": st.column_config.TextColumn("店舗名", pinned="left")
+            }
+        )
+
+    # ===== コメント表示 =====
+    st.subheader("コメント一覧")
+
+    # DBからコメントを取得
+    conn = get_connection()
+    comments_df = pd.read_sql_query('''
+        SELECT year, month, comment, created_at
+        FROM comments
+        ORDER BY year DESC, month DESC, created_at DESC
+    ''', conn)
+    conn.close()
+
+    comments_df_display = comments_df[['year', 'month', 'comment']].copy()
+    comments_df_display.columns = ['年', '月', 'コメント']  # ← 列名を短く
+    comments_df_display['年'] = comments_df_display['年'].astype(str)  # ← 文字列に変換
+    comments_df_display['月'] = comments_df_display['月'].astype(str)  # ← 文字列に変換
+
+    st.dataframe(comments_df_display, use_container_width=True)
+
 
 # ===== ページ切り替え =====
 st.set_page_config(page_title="マスク管理システム", layout="wide")
 
-page = st.sidebar.selectbox("ページを選択", ("マスク着用率一覧", "非着用者入力", "店舗登録", "稼働データ登録", "データ修正"))
+page = st.sidebar.selectbox("ページを選択", ("マスク着用率一覧", "非着用者入力", "店舗登録", "稼働データ登録", "データ修正", "コメント入力"))
 
 if page == "マスク着用率一覧":
     mask_rate_page()
@@ -204,3 +231,5 @@ elif page == "稼働データ登録":
     active.active_page()
 elif page == "データ修正":
     edit.edit_page()
+elif page == "コメント入力":
+    comment.comment_page()
