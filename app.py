@@ -75,7 +75,7 @@ def mask_rate_page():
         graph_mode = st.radio("グラフ表示方法を選択", ["地区別（平均比較）", "地区別（店舗比較）", "店舗別"])
 
         if graph_mode == "店舗別":
-            store_options = df_filtered['store_name'].unique()
+            store_options = df_all['store_name'].unique()
             selected_store = st.selectbox("店舗を選択してグラフ表示", store_options)
             if selected_store:
                 df_store = df_all[df_all['store_name'] == selected_store].copy()
@@ -94,7 +94,7 @@ def mask_rate_page():
                 st.plotly_chart(fig, use_container_width=True)
 
         elif graph_mode == "地区別（店舗比較）":
-            area_options = df_filtered['area'].unique()
+            area_options = df_all['area'].dropna().unique()
             selected_area = st.selectbox("地区を選択してグラフ表示", area_options)
             if selected_area:
                 df_area = df_all[df_all['area'] == selected_area].copy()
