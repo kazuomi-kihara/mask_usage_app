@@ -200,3 +200,4 @@ elif page == "コメント管理":
     comment.comment_page()
 elif page == "設定":
     config.config_page()
+

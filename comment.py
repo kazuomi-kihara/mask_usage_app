@@ -78,3 +78,16 @@ def comment_page():
         st.dataframe(df, use_container_width=True)
 
     conn.close()
+
+def show_comments():
+    st.subheader("コメント一覧")
+
+    conn = get_connection()
+    df = pd.read_sql_query("SELECT year, month, comment FROM comments ORDER BY created_at DESC", conn)
+    conn.close()
+
+    if df.empty:
+        st.info("登録されたコメントはありません")
+    else:
+        df.columns = ["西暦", "月", "コメント"]
+        st.dataframe(df, use_container_width=True)
